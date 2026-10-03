@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Būsena</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --fg: #16181d; --card: #ffffff; --border: #dcdfe4; --muted: #6b7280;
+    --accent: #2b6cb0; --danger: #9b1c1c; --btn-bg: #2b6cb0; --btn-fg: #ffffff; --ok: #1e7b34; --warn: #a16207; --hold: #6f42c1; --otherpc: #c2410c; --doing: #1d4ed8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14151a; --fg: #eceef1; --card: #1d1f26; --border: #333844; --muted: #9aa1ac;
+      --accent: #7fb3ff; --danger: #ff8a8a; --btn-bg: #3a7bd5; --btn-fg: #ffffff; --ok: #6fd98a; --warn: #f5c451; --hold: #b392f0; --otherpc: #fb923c; --doing: #60a5fa;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  body { min-height: 100vh; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+  /* Mail status and tasks side by side, centred, both in view at once (owner, 2026-09-29); each
+     column scrolls on its own. A narrow screen stacks them as before. */
+  #app.wrap { max-width: 1800px; }
+  .columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .col { min-width: 0; }
+  .col h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  @media (min-width: 1000px) {
+    .col { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; padding-right: 4px; }
+  }
+  @media (max-width: 999px) {
+    .columns { grid-template-columns: minmax(0, 1fr); }
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 8px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .muted { color: var(--muted); font-size: 0.85rem; }
+  /* The amount to keep for taxes (Accountant), small, above everything else (owner request rniyzxc2c2). */
+  .reserve { color: var(--muted); font-size: 0.8rem; margin: -6px 0 10px; }
+  button { cursor: pointer; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px;
+    background: var(--btn-bg); color: var(--btn-fg); font-size: 0.9rem; }
+  button.secondary { background: transparent; color: var(--fg); }
+  input[type="password"], input[type="text"] { width: 100%; padding: 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--card); color: var(--fg); font-size: 1rem; }
+  #loginScreen { max-width: 380px; margin: 15vh auto 0; padding: 20px; }
+  #loginScreen .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  #loginError { color: var(--danger); font-size: 0.85rem; min-height: 1.2em; margin-top: 8px; }
+  label.remember { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 0.9rem; }
+  .summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pill { border-radius: 999px; padding: 6px 12px; font-size: 0.82rem; border: 1px solid var(--border); }
+  .cards { display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .card-title { font-weight: 600; }
+  .badge { border-radius: 999px; padding: 4px 10px; font-size: 0.78rem; white-space: nowrap; }
+  .badge-wait-us { background: #fde2e1; color: #9b1c1c; }
+  .badge-wait-sign { background: #efe1fb; color: #5b21b6; }
+  .badge-draft { background: #fff4cc; color: #8a6100; }
+  .badge-maybe { background: #e0f2fe; color: #0c5a75; }
+  .badge-scheduled { background: #ccfbf1; color: #0f766e; }
+  .badge-wait-client { background: #dbeafe; color: #1e40af; }
+  .badge-abandoned { background: #f1e6cf; color: #92700a; }
+  .badge-declined { background: #e5e7eb; color: #4b5563; }
+  .badge-calm { background: #dcfce7; color: #166534; }
+  @media (prefers-color-scheme: dark) {
+    .badge-wait-us { background: #3a1a1a; color: #ff8a8a; }
+    .badge-wait-sign { background: #2a1f3d; color: #d4b8ff; }
+    .badge-draft { background: #3a2f0f; color: #ffe08a; }
+    .badge-maybe { background: #12303d; color: #8fd3ee; }
+    .badge-scheduled { background: #0f332f; color: #5eead4; }
+    .badge-wait-client { background: #142a4a; color: #9cc4ff; }
+    .badge-abandoned { background: #3a301a; color: #d9b877; }
+    .badge-declined { background: #2a2d33; color: #9aa1ac; }
+    .badge-calm { background: #113322; color: #8ee6ac; }
+  }
+  .reason { margin-top: 6px; font-size: 0.88rem; color: var(--fg); }
+  .msgrow { margin-top: 8px; font-size: 0.9rem; }
+  .msgrow .lbl { color: var(--muted); margin-right: 4px; }
+  .snippet { color: var(--muted); margin-top: 2px; white-space: pre-wrap; }
+  .counts { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+  .statusline { margin-top: 8px; font-size: 0.88rem; font-style: italic; }
+  .timeline { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; display: none; }
+  .timeline.open { display: block; }
+  .tl-item { padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 0.85rem; }
+  .tl-item:last-child { border-bottom: none; }
+  .tl-dir-in { color: var(--accent); }
+  .tl-dir-out { color: var(--muted); }
+  .toggle { margin-top: 8px; background: transparent; color: var(--accent); border: none; padding: 4px 0;
+    font-size: 0.85rem; text-decoration: underline; }
+  button.remind { margin-top: 8px; }
+  button.remind[disabled] { opacity: 0.7; cursor: default; }
+  .tasks { margin-top: 0; }
+  .tasks h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  .task-group { margin-bottom: 12px; }
+  .task-group ul { margin: 8px 0 0; padding-left: 18px; }
+  .task-group li { margin: 6px 0; font-size: 0.9rem; }
+  .task-group li .muted { margin-left: 6px; }
+  .task-group li .stage { margin-left: 6px; }
+  .task-group li .stage-waiting { font-weight: 700; color: var(--warn); }
+  .task-group li .stage-hold { font-weight: 700; color: var(--hold); }
+  .task-group .task-old { color: var(--danger); font-weight: 700; animation: slow-blink 2.4s ease-in-out infinite; }
+  @keyframes slow-blink { 50% { opacity: 0.25; } }
+  .task-group details.held-box { margin: 10px 0 0; padding-top: 6px; border-top: 1px dashed var(--border); }
+  .task-group details.held-box summary { cursor: pointer; font-size: 0.85rem; font-weight: 700; color: var(--hold); }
+  .task-group li .stage-ready { font-weight: 700; color: var(--ok); }
+  .task-group li .stage-otherpc { font-weight: 700; color: var(--otherpc); }
+  .task-group li.task-otherpc { color: var(--otherpc); }
+  .task-group li .stage-inprogress { font-weight: 700; color: var(--doing); }
+  .task-group li.task-inprogress { color: var(--doing); }
+  .task-group li .stage-left { font-weight: 700; color: var(--danger); }
+  .task-group li.task-chain { list-style: none; margin: 10px 0 10px -18px; padding: 6px 10px;
+    border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; }
+  .task-chain .chain-step { font-size: 0.9rem; }
+  .task-chain .chain-step .muted, .task-chain .chain-step .stage { margin-left: 6px; }
+  .task-chain .chain-step.task-otherpc { color: var(--otherpc); }
+  .task-chain .chain-step.task-inprogress { color: var(--doing); }
+  .task-chain .chain-step { margin: 4px 0; }
+  .task-chain .chain-arrow { color: var(--accent); font-weight: 700; font-size: 1.1rem; }
+  #notice { font-size: 0.8rem; color: var(--danger); min-height: 1.2em; }
+  #app { display: none; }
+  @media (max-width: 480px) {
+    .wrap { padding: 10px; }
+    .card { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="loginScreen" class="wrap">
+  <div class="card">
+    <h1>Būsena</h1>
+    <p class="muted">Įveskite slaptažodį.</p>
+    <form id="loginForm">
+      <input type="password" id="passwordInput" autocomplete="current-password" required>
+      <label class="remember"><input type="checkbox" id="rememberBox"> Prisiminti šiame įrenginyje</label>
+      <button type="submit">Atrakinti</button>
+      <div id="loginError"></div>
+    </form>
+  </div>
+</div>
+
+<div id="app" class="wrap">
+  <div class="topbar">
+    <h1>Būsena</h1>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span id="updatedAt" class="muted"></span>
+      <button class="secondary" id="refreshBtn" type="button">Atnaujinti</button>
+      <button class="secondary" id="lockBtn" type="button">Užrakinti</button>
+    </div>
+  </div>
+  <div id="reserve" class="reserve" hidden></div>
+  <div id="notice"></div>
+  <div class="columns">
+    <section class="col col-mail" aria-label="Klientų laiškai">
+      <h2>Klientų laiškai</h2>
+      <div id="summary" class="summary"></div>
+      <div id="cards" class="cards"></div>
+    </section>
+    <section class="col col-tasks" aria-label="Užduotys">
+      <div id="tasks" class="tasks"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* CRYPTO-CORE-START */
+function makeCrypto(subtle) {
+  var enc = new TextEncoder();
+  var dec = new TextDecoder();
+  function b64ToBytes(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  function bytesToB64(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  async function deriveKey(password, saltB64, iterations) {
+    var salt = b64ToBytes(saltB64);
+    var keyMaterial = await subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+    return subtle.deriveKey(
+      { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      true,
+      ['encrypt', 'decrypt']
+    );
+  }
+  async function exportKeyBytes(key) {
+    return new Uint8Array(await subtle.exportKey('raw', key));
+  }
+  async function importKeyBytes(bytes) {
+    return subtle.importKey('raw', bytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  }
+  async function encryptText(key, ivB64, text) {
+    var iv = b64ToBytes(ivB64);
+    var ct = await subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(text));
+    return bytesToB64(new Uint8Array(ct));
+  }
+  async function decryptText(key, ivB64, ctB64) {
+    var iv = b64ToBytes(ivB64);
+    var ct = b64ToBytes(ctB64);
+    var pt = await subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct);
+    return dec.decode(pt);
+  }
+  // The private channel names for the "Atnaujinti" button and the "seen" (mail-checked) pings:
+  // SHA-256 of the 32 raw key bytes plus a fixed label, first 40 hex characters: unguessable
+  // without the password (ntfy.sh itself sees the name and the time of each ping, never any data);
+  // tools/status-site.js computes the same names on the PC.
+  async function topicFor(rawKeyBytes, label) {
+    var labelBytes = enc.encode(label);
+    var buf = new Uint8Array(rawKeyBytes.length + labelBytes.length);
+    buf.set(rawKeyBytes, 0); buf.set(labelBytes, rawKeyBytes.length);
+    var h = new Uint8Array(await subtle.digest('SHA-256', buf));
+    var hex = '';
+    for (var i = 0; i < h.length; i++) hex += ('0' + h[i].toString(16)).slice(-2);
+    return 'busena-' + hex.slice(0, 40);
+  }
+  function refreshTopic(rawKeyBytes) { return topicFor(rawKeyBytes, 'busena-refresh'); }
+  function seenTopic(rawKeyBytes) { return topicFor(rawKeyBytes, 'busena-seen'); }
+  // The private channel for the "remind" command (Apleistas cards): same naming scheme as above.
+  function cmdTopic(rawKeyBytes) { return topicFor(rawKeyBytes, 'busena-cmd'); }
+  // Raw AES-GCM key usable only to encrypt (the page never needs to decrypt its own commands back).
+  function importEncryptKey(bytes) {
+    return subtle.importKey('raw', bytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  }
+  return {
+    deriveKey: deriveKey, exportKeyBytes: exportKeyBytes, importKeyBytes: importKeyBytes,
+    encryptText: encryptText, decryptText: decryptText, refreshTopic: refreshTopic, seenTopic: seenTopic,
+    cmdTopic: cmdTopic, importEncryptKey: importEncryptKey,
+    b64ToBytes: b64ToBytes, bytesToB64: bytesToB64
+  };
+}
+/* CRYPTO-CORE-END */
+
+(function () {
+  'use strict';
+  var STORAGE_KEY = 'statusSiteKeyB64';
+  var STATE_ORDER = ['Laukia tavo atsakymo', 'Laukia tavo parašo', 'Juodraštis laukia siuntimo', 'Apleistas', 'Gal verta trumpai atsakyti', 'Suplanuotas siuntimas', 'Laukiam kliento', 'Atsisakė', 'Ramu'];
+  var BADGE_CLASS = {
+    'Laukia tavo atsakymo': 'badge-wait-us',
+    'Laukia tavo parašo': 'badge-wait-sign',
+    'Juodraštis laukia siuntimo': 'badge-draft',
+    'Apleistas': 'badge-abandoned',
+    'Gal verta trumpai atsakyti': 'badge-maybe',
+    'Suplanuotas siuntimas': 'badge-scheduled',
+    'Laukiam kliento': 'badge-wait-client',
+    'Atsisakė': 'badge-declined',
+    'Ramu': 'badge-calm'
+  };
+  var core = makeCrypto(window.crypto.subtle);
+  var key = null;           // CryptoKey currently held in memory
+  var currentSalt = null;   // the salt this key was derived with, to notice a password change
+  var lastCt = null;        // last ciphertext seen, to skip needless re-render
+  var lastData = null;      // last decrypted plaintext object
+  var openKeys = new Set(); // which client timelines are expanded, kept across re-renders
+  var pollTimer = null;
+  var lockGen = 0;          // bumped by lock(); an in-flight poll checks this before rendering
+  var topic = null;         // private refresh channel (core.refreshTopic), known only once unlocked
+  var refreshAskedAt = 0;   // when "Atnaujinti" was pressed; 0 = no refresh waiting
+  var seenChannel = null;   // private "mail checked" channel (core.seenTopic), known only once unlocked
+  var seenTimer = null;     // polls seenChannel every 30 s
+  var keyRawBytes = null;   // raw key bytes kept while unlocked, to encrypt "Priminti klientui" commands
+  var cmdChannel = null;    // private command channel (core.cmdTopic), known only once unlocked
+  var askedRemind = new Set(); // client keys whose reminder was asked, so a re-render keeps the button disabled
+  var askedRemindAt = {};      // when each was asked: after 10 min with no draft the button comes back
+  var lastCheckedAt = 0;    // ms epoch of the newest "mail checked" event seen on seenChannel; 0 = none yet
+  var lastPublishHandled = 0; // unix seconds of the newest 'p' (new data published) already acted on
+  var SEEN_STALE_NOTICE = 'Kompiuteris seniai tikrino paštą: gal išjungtas ar miega.';
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+
+  function setNotice(msg) { document.getElementById('notice').textContent = msg || ''; }
+  // The 2-second check only clears its OWN error message, never the refresh button's messages.
+  var FETCH_ERRORS = ['Nepavyko atnaujinti duomenų.', 'Nepavyko pasiekti duomenų — bandoma iš naujo.'];
+  function clearFetchError() {
+    var n = document.getElementById('notice');
+    if (FETCH_ERRORS.indexOf(n.textContent) >= 0) n.textContent = '';
+  }
+
+  async function fetchPayload() {
+    var res = await fetch('data.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('http ' + res.status);
+    return res.json();
+  }
+  // While a refresh is waiting, the new data is read straight from the repository: it is there the
+  // moment the PC publishes, while the site itself takes ~2.5 more minutes to update (measured
+  // 2026-09-28). Every 15 s and for at most 4 minutes per press (16 requests), and it stops for the
+  // hour if GitHub says its 60-an-hour limit for visitors is used up; the site keeps being read anyway.
+  async function fetchPayloadFromRepo() {
+    var res = await fetch('https://api.github.com/repos/Crystalius7/busena/contents/data.json?ref=main&t=' + Date.now(),
+      { cache: 'no-store', headers: { Accept: 'application/vnd.github.raw+json' } });
+    if (res.status === 403 || res.status === 429) { repoBlockedUntil = Date.now() + 60 * 60e3; throw new Error('rate limit'); }
+    if (!res.ok) throw new Error('http ' + res.status);
+    return res.json();
+  }
+  var repoBlockedUntil = 0;
+
+  function showLogin(errMsg) {
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'block';
+    document.getElementById('loginError').textContent = errMsg || '';
+  }
+
+  function showApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+  }
+
+  // "prieš N s" / "prieš N min" / "prieš N val." - `when` is anything `new Date()` accepts (ISO
+  // string or an epoch ms number). Used for both facts shown in #updatedAt.
+  function fmtElapsed(when) {
+    var ms = Date.now() - new Date(when).getTime();
+    var s = Math.max(0, Math.round(ms / 1000));
+    if (s < 60) return 'prieš ' + s + ' s';
+    var min = Math.round(s / 60);
+    if (min < 60) return 'prieš ' + min + ' min';
+    var h = Math.round(min / 60);
+    return 'prieš ' + h + ' val.';
+  }
+
+  // Two facts, shown together once the seen channel has answered at least once: when the PC last
+  // checked its mail (from the seen channel), and when the shown data itself last changed. Before
+  // the first seen-channel answer only the second is shown.
+  function renderUpdatedAt() {
+    var parts = [];
+    if (lastCheckedAt) parts.push('Paštas tikrintas ' + fmtElapsed(lastCheckedAt));
+    if (lastData) parts.push('duomenys pasikeitė ' + fmtElapsed(lastData.updatedAt));
+    document.getElementById('updatedAt').textContent = parts.join(' · ');
+  }
+
+  // The tax reserve line; hover shows the breakdown and the pay-by date. Absent (an older data.json) -> hidden.
+  function renderReserve(data) {
+    var box = document.getElementById('reserve');
+    var r = data.reserve;
+    if (!r || typeof r.text !== 'string') { box.hidden = true; box.textContent = ''; box.removeAttribute('title'); return; }
+    box.textContent = r.text;
+    if (r.title) box.title = r.title; else box.removeAttribute('title');
+    box.hidden = false;
+  }
+
+  function renderSummary(data) {
+    var box = document.getElementById('summary');
+    box.textContent = '';
+    var counts = {};
+    STATE_ORDER.forEach(function (s) { counts[s] = 0; });
+    (data.clients || []).forEach(function (c) { counts[c.state] = (counts[c.state] || 0) + 1; });
+    STATE_ORDER.forEach(function (s) {
+      var pill = el('span', 'pill', s + ': ' + (counts[s] || 0));
+      box.appendChild(pill);
+    });
+  }
+
+  function renderMsgRow(label, msg, withSnippet) {
+    var row = el('div', 'msgrow');
+    var lbl = el('span', 'lbl', label + ':');
+    row.appendChild(lbl);
+    if (!msg) {
+      row.appendChild(el('span', 'muted', '(nėra)'));
+      return row;
+    }
+    var when = new Date(msg.date);
+    row.appendChild(el('span', null, when.toLocaleString('lt-LT') + ' — ' + (msg.subject || '')));
+    if (withSnippet && msg.snippet) row.appendChild(el('div', 'snippet', msg.snippet));
+    return row;
+  }
+
+  // The state a card shows can be wrong (e.g. a mail-search miss); c.reason names WHICH letter (or
+  // which desktop file) actually produced it, so a wrong state is easy to spot at a glance.
+  function formatReason(r, state) {
+    var when = r.date ? new Date(r.date).toLocaleString('lt-LT') : '';
+    var subj = r.subject ? '„' + r.subject + '“' : '';
+    var parts, text;
+    if (r.kind === 'their') {
+      var maybe = state === 'Gal verta trumpai atsakyti';
+      var answered = state === 'Laukiam kliento' || state === 'Apleistas';
+      if (r.channel === 'messenger') return 'jų žinutė Messenger ' + when + (maybe ? ' gal verta trumpai atsakyti' : answered ? ' nieko neprašo' : ' dar neatsakyta');
+      parts = ['jų laiškas'];
+      if (when) parts.push(when);
+      if (r.from) parts.push('nuo ' + r.from);
+      parts.push(maybe ? 'gal verta trumpai atsakyti' : answered ? 'nieko neprašo' : 'dar neatsakytas');
+      text = parts.join(' ');
+      if (subj) text += ' — ' + subj;
+      return text;
+    }
+    if (r.kind === 'mention') {
+      parts = ['laiškas, minintis klientą,'];
+      if (when) parts.push(when);
+      if (r.from) parts.push('nuo ' + r.from);
+      parts.push('dar neatsakytas');
+      text = parts.join(' ');
+      if (subj) text += ' — ' + subj;
+      return text;
+    }
+    if (r.kind === 'contract') return 'darbalaukyje laukia nepasirašyta sutartis';
+    if (r.kind === 'draft') return 'yra dar neišsiųstas juodraštis';
+    if (r.kind === 'scheduled') {
+      parts = ['laiškas suplanuotas išsiųsti'];
+      if (when) parts.push(when);
+      text = parts.join(' ');
+      if (subj) text += ' — ' + subj;
+      return text;
+    }
+    if (r.kind === 'ours') {
+      if (r.channel === 'messenger') return 'paskutinė mūsų žinutė Messenger ' + when + '; atsakymo dar nėra';
+      parts = ['paskutinis laiškas mūsų'];
+      if (when) parts.push(when);
+      text = parts.join(' ');
+      if (subj) text += ' — ' + subj;
+      return text + '; atsakymo dar nėra';
+    }
+    if (r.kind === 'abandoned') {
+      if (r.channel === 'messenger') return 'klientas neatsako ' + r.days + ' d. — paskutinė mūsų žinutė Messenger ' + when;
+      text = r.their ? 'klientas tyli ' + r.days + ' d. — paskutinis jų laiškas (nieko neprašė)'
+        : typeof r.days === 'number' ? 'klientas neatsako ' + r.days + ' d. — paskutinis mūsų laiškas' : 'klientas seniai neatsako (paskutinis mūsų laiškas senesnis nei pusė metų)';
+      if (when) text += ' ' + when;
+      if (subj) text += ' ' + subj;
+      return text;
+    }
+    if (r.kind === 'declined') {
+      if (r.channel === 'messenger') return 'klientas atsisakė ' + when + ' (Messenger)';
+      text = 'klientas atsisakė';
+      if (when) text += ' ' + when;
+      if (r.from) text += ' (nuo ' + r.from + ')';
+      text += ' —';
+      if (subj) text += ' ' + subj;
+      return text;
+    }
+    return null; // unknown kind: card renders as before, without the reason line
+  }
+
+  function renderCard(c) {
+    var card = el('div', 'card');
+    card.dataset.key = c.key;
+    var head = el('div', 'card-head');
+    head.appendChild(el('div', 'card-title', c.name + ' (' + c.key + ')'));
+    var badge = el('span', 'badge ' + (BADGE_CLASS[c.state] || ''), c.state);
+    head.appendChild(badge);
+    card.appendChild(head);
+
+    if (c.reason) {
+      var reasonText = formatReason(c.reason, c.state);
+      if (reasonText) {
+        card.appendChild(el('div', 'reason', 'Kodėl: ' + reasonText));
+        if (c.reason.snippet) card.appendChild(el('div', 'snippet', c.reason.snippet));
+      }
+    }
+
+    card.appendChild(renderMsgRow('Iš jų', c.lastFromThem, true));
+    card.appendChild(renderMsgRow('Iš mūsų', c.lastFromUs, false));
+
+    var counts = el('div', 'counts',
+      'Iš jų: ' + (c.counts ? c.counts.fromThem : 0) + ' · Iš mūsų: ' + (c.counts ? c.counts.fromUs : 0));
+    card.appendChild(counts);
+
+    if (c.channel === 'messenger') card.appendChild(el('div', 'statusline', 'Kanalas: Messenger'));
+    if (c.statusLine) card.appendChild(el('div', 'statusline', c.statusLine));
+    if (c.newAddresses && c.newAddresses.length) {
+      card.appendChild(el('div', 'statusline', 'Rašė iš adreso, kurio nėra kliento faile: ' + c.newAddresses.join(', ')));
+    }
+
+    // The "remind" button posts a Gmail draft, so it is never shown for a Messenger-only client;
+    // an abandoned Messenger card tells the owner to remind the client there instead.
+    if (c.state === 'Apleistas' && c.channel === 'messenger') {
+      card.appendChild(el('div', 'statusline', 'Klientas bendrauja per Messenger: priminkite jam ten.'));
+    } else if (c.state === 'Apleistas' && keyRawBytes) {
+      // The "remind" button only exists once there is a raw key to encrypt the command with (e.g. it
+      // never shows for an old remembered-key flow that never captured the bytes).
+      var remindBtn = el('button', 'remind', 'Priminti klientui');
+      remindBtn.type = 'button';
+      if (askedRemind.has(c.key)) {
+        remindBtn.disabled = true;
+        remindBtn.textContent = 'Priminimas paprašytas: juodraštis atsiras Gmail per kelias minutes';
+      }
+      remindBtn.addEventListener('click', function () { requestRemind(c, remindBtn); });
+      card.appendChild(remindBtn);
+    }
+
+    var toggle = el('button', 'toggle', openKeys.has(c.key) ? 'Slėpti istoriją' : 'Rodyti istoriją');
+    toggle.type = 'button';
+    var timeline = el('div', 'timeline' + (openKeys.has(c.key) ? ' open' : ''));
+    (c.timeline || []).forEach(function (t) {
+      var item = el('div', 'tl-item');
+      var when = new Date(t.date).toLocaleString('lt-LT');
+      var dirLbl = t.direction === 'in' ? 'iš jų' : 'iš mūsų';
+      var dirCls = t.direction === 'in' ? 'tl-dir-in' : 'tl-dir-out';
+      item.appendChild(el('span', dirCls, when + ' [' + dirLbl + '] '));
+      item.appendChild(el('span', null, t.subject || ''));
+      if (t.snippet) item.appendChild(el('div', 'snippet', t.snippet));
+      timeline.appendChild(item);
+    });
+    toggle.addEventListener('click', function () {
+      if (openKeys.has(c.key)) { openKeys.delete(c.key); timeline.classList.remove('open'); toggle.textContent = 'Rodyti istoriją'; }
+      else { openKeys.add(c.key); timeline.classList.add('open'); toggle.textContent = 'Slėpti istoriją'; }
+    });
+    card.appendChild(toggle);
+    card.appendChild(timeline);
+    return card;
+  }
+
+  // Builds and sends the encrypted "remind" command for one client, on the private cmd channel.
+  async function requestRemind(c, btn) {
+    if (!keyRawBytes) return;
+    btn.disabled = true;
+    btn.textContent = 'Kuriamas priminimo juodraštis…';
+    try {
+      var ivBytes = new Uint8Array(12);
+      window.crypto.getRandomValues(ivBytes);
+      var nonceBytes = new Uint8Array(16);
+      window.crypto.getRandomValues(nonceBytes);
+      var nonce = '';
+      for (var i = 0; i < nonceBytes.length; i++) nonce += ('0' + nonceBytes[i].toString(16)).slice(-2);
+      var cmd = { cmd: 'remind', key: c.key, at: Date.now(), nonce: nonce };
+      var encKey = await core.importEncryptKey(keyRawBytes);
+      var ctBuf = await window.crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: ivBytes }, encKey, new TextEncoder().encode(JSON.stringify(cmd)));
+      var body = JSON.stringify({ v: 1, iv: core.bytesToB64(ivBytes), ct: core.bytesToB64(new Uint8Array(ctBuf)) });
+      var topicName = cmdChannel || await core.cmdTopic(keyRawBytes);
+      var res = await fetch('https://ntfy.sh/' + topicName, { method: 'POST', body: body });
+      if (!res.ok) throw new Error('http ' + res.status);
+      askedRemind.add(c.key);
+      askedRemindAt[c.key] = Date.now();
+      btn.disabled = true;
+      btn.textContent = 'Priminimas paprašytas: juodraštis atsiras Gmail per kelias minutes';
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Priminti klientui';
+      setNotice('Nepavyko paprašyti priminimo. Bandykite dar kartą.');
+    }
+  }
+
+  function render(data) {
+    lastData = data;
+    renderUpdatedAt();
+    renderReserve(data);
+    // A remind already asked stays remembered only while the card is still 'Apleistas'.
+    var stillAbandoned = {};
+    (data.clients || []).forEach(function (c) { if (c.state === 'Apleistas') stillAbandoned[c.key] = true; });
+    askedRemind.forEach(function (k) { if (!stillAbandoned[k]) askedRemind.delete(k); });
+    renderSummary(data);
+    var box = document.getElementById('cards');
+    box.textContent = '';
+    (data.clients || []).forEach(function (c) { box.appendChild(renderCard(c)); });
+    renderTasks(data);
+  }
+
+  // The owner's open requests from every folder's list: a finished one is gone after the next publish,
+  // a new one shows up the same way. Absent (an older data.json) -> the section stays empty.
+  // Which folders' "held until a date" fold the owner has opened: the list is redrawn every few seconds,
+  // so the fold must remember its state (and a reload keeps it too, when the browser allows storage).
+  var heldOpen = {};
+  try { heldOpen = JSON.parse(localStorage.getItem('busena-held-open') || '{}') || {}; } catch (e) { heldOpen = {}; }
+  function isHeld(t) { var u = t.holdUntil || t.readyAt; return t.stage === 'waiting' && t.hold && u && Date.now() < Date.parse(u); }
+  function renderTasks(data) {
+    var box = document.getElementById('tasks');
+    box.textContent = '';
+    if (data.tasks === null) { box.appendChild(el('div', 'muted', 'Užduočių sąrašo nepavyko perskaityti (kompiuteris jo nepasiekė).')); return; }
+    if (!Array.isArray(data.tasks)) return;
+    var failed = data.tasks.filter(function (g) { return g.error; }).map(function (g) { return g.folder === '.' ? 'Pagrindinis aplankas' : g.folder; });
+    var total = data.tasks.reduce(function (n, g) { return n + (g.tasks ? g.tasks.length : 0); }, 0);
+    box.appendChild(el('h2', null, 'Neatliktos užduotys (' + total + ')'));
+    if (failed.length) box.appendChild(el('div', 'muted', 'Nepavyko perskaityti: ' + failed.join(', ') + '.'));
+    if (!total && !failed.length) { box.appendChild(el('div', 'muted', 'Visos užduotys atliktos.')); return; }
+    data.tasks.forEach(function (g) {
+      if (g.error) return;
+      var card = el('div', 'card task-group');
+      card.appendChild(el('div', 'card-title', (g.folder === '.' ? 'Pagrindinis aplankas' : g.folder) + ' (' + g.tasks.length + ')'));
+      var ul = el('ul');
+      // A blue mark past its time is a forgotten one: show the task plain.
+      var shown = g.tasks.map(function (t) { return (t.stage === 'inprogress' && !(Date.now() < t.stageUntil)) ? { id: t.id, text: t.text, ts: t.ts, after: t.after } : t; });
+      // Tasks linked by an order (requests.js after) sit together in one box, first step on top, with
+      // an arrow down to the next (owner, 2026-09-29); every other task is a plain line as before.
+      // Each step sits under the step it comes after, indented, with an arrow; side-by-side steps
+      // (both after the same one) get no arrow between them, so no order is shown that isn't there.
+      // Tasks held on purpose until a date (a lone task, not a chain step) always sit at the bottom of their
+      // folder, folded away under one line (owner, 2026-09-30); at their date they turn ready and move back up.
+      var held = [];
+      taskChains(shown).forEach(function (grp) {
+        if (grp.steps.length === 1 && isHeld(grp.steps[0].task)) { held.push(grp.steps[0].task); return; }
+        if (grp.steps.length === 1) { ul.appendChild(taskLine('li', grp.steps[0].task)); return; }
+        var box = el('li', 'task-chain');
+        grp.steps.forEach(function (st) {
+          var line = taskLine('div', st.task);
+          line.style.paddingLeft = (st.depth * 22) + 'px';
+          if (st.depth) line.insertBefore(el('span', 'chain-arrow', '\u21b3 '), line.firstChild);
+          if (st.alsoAfter.length) line.appendChild(el('span', 'muted', '(also after: ' + st.alsoAfter.map(function (t) { return t.text.length > 50 ? t.text.slice(0, 50) + '\u2026' : t.text; }).join('; ') + ')'));
+          box.appendChild(line);
+        });
+        ul.appendChild(box);
+      });
+      card.appendChild(ul);
+      if (held.length) {
+        var fold = el('details', 'held-box'), key = g.folder;
+        fold.open = !!heldOpen[key];
+        fold.appendChild(el('summary', null, '🔒 Held until a date (' + held.length + ')'));
+        var hul = el('ul');
+        held.forEach(function (t) { hul.appendChild(taskLine('li', t)); });
+        fold.appendChild(hul);
+        fold.addEventListener('toggle', function () {
+          heldOpen[key] = fold.open;
+          try { localStorage.setItem('busena-held-open', JSON.stringify(heldOpen)); } catch (e) { /* storage blocked: the fold still works */ }
+        });
+        card.appendChild(fold);
+      }
+      box.appendChild(card);
+    });
+  }
+
+  // One task line. Waiting: yellow "Waiting" and what for (can't be done yet); ready: green "Ready"
+  // (can be done right now); on another PC: the whole task orange, with "On <PC name>" (can only be
+  // done on that exact PC); in progress: the whole task blue, with "In progress" (being worked on);
+  // left unfinished: a red "Left unfinished" (a chat began it and closed without settling it).
+  // Held on purpose (t.hold): a purple lock instead of yellow: it could be done now but waits for its date
+  // for an important reason; at that date it turns ready like any dated wait.
+  // In a chain every step shows its own mark: a step a session can already work on stays green
+  // even while a step above it waits (owner, 2026-09-29).
+  function taskLine(tag, t) {
+    // A dated wait whose time has come is ready by itself (requests.js wait --until).
+    if (t.stage === 'waiting' && t.readyAt && Date.now() >= Date.parse(t.readyAt)) t = Object.assign({}, t, { stage: 'ready', stageAuto: 'its time has come' });
+    var cls = t.stage === 'otherpc' ? 'task-otherpc' : t.stage === 'inprogress' ? 'task-inprogress' : null;
+    var line = el(tag, tag === 'div' ? 'chain-step' + (cls ? ' ' + cls : '') : cls, t.text);
+    // A hold whose date has passed but whose steps above are still open is a plain wait again.
+    if (t.stage === 'waiting' && t.hold && (t.holdUntil || t.readyAt) && Date.now() < Date.parse(t.holdUntil || t.readyAt)) { var hd = new Date(t.holdUntil || t.readyAt), hm = hd.getHours() || hd.getMinutes(); var hs = el('span', 'stage stage-hold', '🔒 Held until ' + (hm ? hd.toLocaleString('lt-LT', { dateStyle: 'short', timeStyle: 'short' }) : hd.toLocaleDateString('lt-LT')) + (t.stageNote ? ': ' + t.stageNote : '')); hs.title = 'Waits until this date' + (t.readyAt ? ', then turns ready by itself' : ' and for the steps above'); line.appendChild(hs); }
+    else if (t.stage === 'waiting') line.appendChild(el('span', 'stage stage-waiting', 'Waiting' + (t.stageNote ? ': ' + t.stageNote : '')));
+    else if (t.stage === 'inprogress') line.appendChild(el('span', 'stage stage-inprogress', 'In progress' + (t.stageNote ? ': ' + t.stageNote : '')));
+    // Left unfinished (owner, 2026-10-01): a chat began it and closed without settling it; red, so it stands out.
+    else if (t.stage === 'left') { var lt = el('span', 'stage stage-left', '⚠ Left unfinished' + (t.leftSince ? ' since ' + new Date(t.leftSince).toLocaleString('lt-LT', { dateStyle: 'short', timeStyle: 'short' }) : '') + (t.stageNote ? ': ' + t.stageNote : '')); lt.title = 'A chat started this and closed without finishing it; the next chat in that folder sets its real state'; line.appendChild(lt); }
+    else if (t.stage === 'otherpc') line.appendChild(el('span', 'stage stage-otherpc', 'On ' + (t.stagePc || '?') + (t.stageNote ? ': ' + t.stageNote : '')));
+    else if (t.stage === 'ready') line.appendChild(el('span', 'stage stage-ready', 'Ready' + (t.stageAuto ? ' (' + t.stageAuto + ')' : '') + (t.stageNote ? ': ' + t.stageNote : '')));
+    if (t.ts) {
+      // Open 3+ days (owner, 2026-09-30): only the date turns red and blinks slowly, whatever the task's
+      // stage. The negative delay keeps the blink in step across redraws.
+      var old = Date.now() - Date.parse(t.ts) >= 3 * 86400e3;
+      var ds = el('span', old ? 'muted task-old' : 'muted', new Date(t.ts).toLocaleDateString('lt-LT'));
+      if (old) { ds.title = 'Open 3 days or more'; ds.style.animationDelay = -(Date.now() % 2400) + 'ms'; }
+      line.appendChild(ds);
+    }
+    return line;
+  }
+
+  /* TASK-CHAINS-START */
+  // Groups one folder's tasks (oldest first) by their order links (t.after: ids of tasks that come
+  // first). Returns [{ steps: [{ task, depth, alsoAfter: [tasks] }] }] in the order of each group's
+  // oldest task. Steps come as a tree: a step follows (one level deeper) the step it comes after; a
+  // step after several sits under the last of them placed and lists the others in alsoAfter. Links
+  // to tasks not in the list are ignored; a leftover loop (requests.js never writes one) is shown flat.
+  function taskChains(tasks) {
+    var idx = {}, i;
+    for (i = 0; i < tasks.length; i++) idx[tasks[i].id] = i;
+    var parent = tasks.map(function (_, k) { return k; });
+    function root(k) { while (parent[k] !== k) { parent[k] = parent[parent[k]]; k = parent[k]; } return k; }
+    var before = tasks.map(function (t) {
+      var seen = {};
+      return (t.after || []).filter(function (a) { var ok = idx[a] !== undefined && a !== t.id && !seen[a]; seen[a] = true; return ok; }).map(function (a) { return idx[a]; });
+    });
+    var kids = tasks.map(function () { return []; });
+    before.forEach(function (bs, k) { bs.forEach(function (b) { kids[b].push(k); var x = root(k), y = root(b); if (x !== y) parent[Math.max(x, y)] = Math.min(x, y); }); });
+    var groups = {}, order = [];
+    for (i = 0; i < tasks.length; i++) { var r = root(i); if (!groups[r]) { groups[r] = []; order.push(r); } groups[r].push(i); }
+    return order.map(function (r) {
+      var placed = {}, steps = [];
+      function visit(k, depth, under) {
+        placed[k] = true;
+        steps.push({ task: tasks[k], depth: depth, alsoAfter: before[k].filter(function (b) { return b !== under; }).map(function (b) { return tasks[b]; }) });
+        kids[k].forEach(function (c) { if (!placed[c] && before[c].every(function (b) { return placed[b]; })) visit(c, depth + 1, k); });
+      }
+      groups[r].forEach(function (k) { if (!placed[k] && !before[k].length) visit(k, 0, -1); });
+      groups[r].forEach(function (k) { if (!placed[k]) visit(k, 0, -1); });
+      return { steps: steps };
+    });
+  }
+  /* TASK-CHAINS-END */
+
+  function tickClock() {
+    // A reminder asked 10+ minutes ago that never turned into a draft (PC asleep, request expired,
+    // draft failed): give the button back so it can be pressed again.
+    var expired = false;
+    askedRemind.forEach(function (k) { if (Date.now() - (askedRemindAt[k] || 0) > 10 * 60e3) { askedRemind.delete(k); expired = true; } });
+    if (expired && lastData) render(lastData);
+    // A blue "In progress" mark still on screen past its time: drop it and redraw the tasks once.
+    else if (lastData && Array.isArray(lastData.tasks)) {
+      var staleBlue = false;
+      lastData.tasks.forEach(function (g) {
+        (g.tasks || []).forEach(function (t) { if (t.stage === 'inprogress' && !(Date.now() < t.stageUntil)) { delete t.stage; delete t.stageNote; staleBlue = true; } });
+      });
+      // A dated wait just reached its time: redraw once so it turns green without a new publish.
+      lastData.tasks.forEach(function (g) {
+        (g.tasks || []).forEach(function (t) { if (t.stage === 'waiting' && t.readyAt && Date.now() >= Date.parse(t.readyAt) && !t.readyShown) { t.readyShown = true; staleBlue = true; } });
+      });
+      // A task just turned 3 days old: redraw once so its date turns red without a new publish.
+      lastData.tasks.forEach(function (g) {
+        (g.tasks || []).forEach(function (t) { if (t.ts && Date.now() - Date.parse(t.ts) >= 3 * 86400e3 && !t.oldShown) { t.oldShown = true; staleBlue = true; } });
+      });
+      if (staleBlue) renderTasks(lastData);
+    }
+    if (lastData || lastCheckedAt) renderUpdatedAt();
+    if (!refreshAskedAt) return;
+    var btn = document.getElementById('refreshBtn');
+    if (lastData && new Date(lastData.updatedAt).getTime() > refreshAskedAt) {
+      refreshAskedAt = 0; btn.disabled = false; btn.textContent = 'Atnaujinti';
+      setNotice('Atnaujinta.');
+      setTimeout(function () { if (document.getElementById('notice').textContent === 'Atnaujinta.') setNotice(''); }, 15000);
+    } else if (Date.now() - refreshAskedAt > 7 * 60e3) {
+      refreshAskedAt = 0; btn.disabled = false; btn.textContent = 'Atnaujinti';
+      setNotice('Kompiuteris neatsakė: gal išjungtas ar miega. Duomenys atsinaujins, kai jis vėl veiks.');
+    }
+  }
+
+  // "Atnaujinti": an empty ping on the private channel; the PC checks it every minute, rebuilds the
+  // data at once, and publishes it. The page itself now notices within about a minute, since the
+  // seen channel's "p" ping (posted right after that publish) makes it fetch the new data straight
+  // from the repository instead of waiting for the site's own ~2.5-minute propagation delay.
+  async function askRefresh() {
+    if (!topic || refreshAskedAt) return;
+    var btn = document.getElementById('refreshBtn');
+    btn.disabled = true; btn.textContent = 'Atnaujinama…';
+    var myGen = lockGen;
+    try {
+      var res = await fetch('https://ntfy.sh/' + topic, { method: 'POST', body: 'r' });
+      if (myGen !== lockGen) return;   // locked meanwhile: lock() already reset everything
+      if (!res.ok) throw new Error('http ' + res.status);
+      refreshAskedAt = Date.now();
+      setNotice('Paprašyta atnaujinti: naujausi duomenys bus čia per 2–4 min.');
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Atnaujinti';
+      setNotice('Nepavyko paprašyti atnaujinimo. Bandykite dar kartą.');
+    }
+  }
+
+  function clearApp() {
+    document.getElementById('summary').textContent = '';
+    document.getElementById('cards').textContent = '';
+    document.getElementById('tasks').textContent = '';
+    var reserve = document.getElementById('reserve');
+    reserve.textContent = '';
+    reserve.removeAttribute('title');
+    reserve.hidden = true;
+  }
+
+  // The decrypt/compare/render path shared by the ordinary 2 s poll and the fast path triggered by
+  // the seen channel's "p" ping. Every lockGen check and the "never step back" rule apply either way.
+  async function handlePayload(payload, myGen) {
+    if (myGen !== lockGen) return; // locked while this request was in flight: never render it
+    if (payload.salt !== currentSalt) {
+      // the password changed server-side: the key in memory (and any remembered one) can never
+      // decrypt this payload again - forget it and show the login screen instead of failing forever.
+      lockGen++;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (seenTimer) { clearInterval(seenTimer); seenTimer = null; }
+      key = null; currentSalt = null; lastCt = null; lastData = null; topic = null; seenChannel = null;
+      lastCheckedAt = 0; lastPublishHandled = 0;
+      keyRawBytes = null; cmdChannel = null; askedRemind.clear();
+      clearApp();
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+      showLogin('');
+      bootWithPayload(payload);
+      return;
+    }
+    if (payload.ct === lastCt) { clearFetchError(); return; }
+    try {
+      var text = await core.decryptText(key, payload.iv, payload.ct);
+      if (myGen !== lockGen) return; // locked while decrypting: never render it
+      var data = JSON.parse(text);
+      // Never step back: right after a refresh the repository copy is newer than the site's copy
+      // for ~2.5 minutes, and the site's older one must not replace it.
+      if (lastData && new Date(data.updatedAt).getTime() < new Date(lastData.updatedAt).getTime()) { clearFetchError(); return; }
+      lastCt = payload.ct;
+      render(data);
+      clearFetchError();
+    } catch (e) {
+      if (myGen !== lockGen) return;
+      setNotice('Nepavyko atnaujinti duomenų.');
+    }
+  }
+
+  var repoPollAt = 0;
+  async function poll() {
+    var myGen = lockGen;
+    var payload;
+    var fromRepo = refreshAskedAt && Date.now() - refreshAskedAt < 4 * 60e3 && Date.now() >= repoBlockedUntil &&
+      Date.now() - repoPollAt >= 15000;
+    if (fromRepo) repoPollAt = Date.now();
+    try { payload = fromRepo ? await fetchPayloadFromRepo() : await fetchPayload(); }
+    catch (e) { if (myGen === lockGen) setNotice('Nepavyko atnaujinti duomenų.'); return; }
+    await handlePayload(payload, myGen);
+  }
+
+  // Once from the repository, straight after the seen channel shows the PC just published new data
+  // (much faster than waiting for the site's own ~2.5-minute propagation delay or the 2 s poll's
+  // data.json, which lags behind the repository too). If the repo copy turns out not to be the new
+  // one yet (ct unchanged), it is tried exactly once more, 20 s later.
+  async function fetchFreshFromRepo(myGen, isRetry) {
+    if (Date.now() < repoBlockedUntil) return;
+    var payload;
+    try { payload = await fetchPayloadFromRepo(); } catch (e) { return; }
+    if (myGen !== lockGen) return;
+    if (payload.ct === lastCt) {
+      if (!isRetry) setTimeout(function () { fetchFreshFromRepo(myGen, true); }, 20000);
+      return;
+    }
+    await handlePayload(payload, myGen);
+  }
+
+  // The "seen" channel: the PC posts 'p' right after a mail check that published new data, and 'c'
+  // after a check where nothing changed - proof it is still alive even when nothing else changes.
+  function updateSeenNotice() {
+    var n = document.getElementById('notice');
+    var stale = !lastCheckedAt || (Date.now() - lastCheckedAt > 20 * 60e3);
+    if (stale) {
+      if (!n.textContent || n.textContent === SEEN_STALE_NOTICE) setNotice(SEEN_STALE_NOTICE);
+    } else if (n.textContent === SEEN_STALE_NOTICE) {
+      setNotice('');
+    }
+  }
+
+  async function pollSeen() {
+    if (!seenChannel) return;
+    var myGen = lockGen;
+    var text;
+    try {
+      var res = await fetch('https://ntfy.sh/' + seenChannel + '/json?poll=1&since=30m', { cache: 'no-store' });
+      if (!res.ok) throw new Error('http ' + res.status);
+      text = await res.text();
+    } catch (e) { updateSeenNotice(); return; } // a failed check is ignored silently, old values kept
+    if (myGen !== lockGen) return;
+    var newestSeen = 0, newestPublish = 0;
+    text.split('\n').forEach(function (line) {
+      if (!line.trim()) return;
+      var ev;
+      try { ev = JSON.parse(line); } catch (e) { return; }
+      if (ev.event !== 'message') return;
+      if (ev.time > newestSeen) newestSeen = ev.time;
+      if (ev.message === 'p' && ev.time > newestPublish) newestPublish = ev.time;
+    });
+    if (newestSeen) lastCheckedAt = newestSeen * 1000;
+    renderUpdatedAt();
+    updateSeenNotice();
+    if (newestPublish > lastPublishHandled) {
+      lastPublishHandled = newestPublish;
+      fetchFreshFromRepo(myGen, false);
+    }
+  }
+
+  function startSeenLoop() {
+    if (seenTimer) clearInterval(seenTimer);
+    pollSeen();
+    seenTimer = setInterval(pollSeen, 30000);
+  }
+
+  function startLoops() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(poll, 2000);
+    setInterval(tickClock, 1000);
+  }
+
+  function resetRefreshBtn() {
+    var btn = document.getElementById('refreshBtn');
+    btn.disabled = false; btn.textContent = 'Atnaujinti';
+  }
+
+  function onUnlocked(theKey, payload, data, rawBytes) {
+    key = theKey;
+    refreshAskedAt = 0;
+    resetRefreshBtn();
+    topic = null;
+    seenChannel = null; lastCheckedAt = 0; lastPublishHandled = 0;
+    keyRawBytes = rawBytes || null;
+    cmdChannel = null;
+    askedRemind.clear();
+    if (seenTimer) { clearInterval(seenTimer); seenTimer = null; }
+    if (rawBytes) {
+      core.refreshTopic(rawBytes).then(function (t) { topic = t; }).catch(function () {});
+      core.seenTopic(rawBytes).then(function (t) { seenChannel = t; startSeenLoop(); }).catch(function () {});
+      core.cmdTopic(rawBytes).then(function (t) { cmdChannel = t; }).catch(function () {});
+    }
+    currentSalt = payload.salt;
+    lastCt = payload.ct;
+    showApp();
+    render(data);
+    startLoops();
+  }
+
+  async function tryStoredKey(payload) {
+    var storedRaw;
+    try { storedRaw = localStorage.getItem(STORAGE_KEY); } catch (e) { storedRaw = null; }
+    if (!storedRaw) return false;
+    try {
+      var stored = JSON.parse(storedRaw);
+      if (!stored || stored.salt !== payload.salt) {
+        // the salt changed server-side (password changed): the remembered key can never decrypt
+        // this payload, so forget it and fall through to the login screen instead of trying.
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e2) { /* ignore */ }
+        return false;
+      }
+      var bytes = core.b64ToBytes(stored.key);
+      var k = await core.importKeyBytes(bytes);
+      var text = await core.decryptText(k, payload.iv, payload.ct);
+      var data = JSON.parse(text);
+      onUnlocked(k, payload, data, bytes);
+      return true;
+    } catch (e) {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e2) { /* ignore */ }
+      return false;
+    }
+  }
+
+  async function bootWithPayload(payload) {
+    var unlocked = await tryStoredKey(payload);
+    if (unlocked) return;
+    showLogin('');
+    document.getElementById('loginForm').onsubmit = async function (ev) {
+      ev.preventDefault();
+      var password = document.getElementById('passwordInput').value;
+      var remember = document.getElementById('rememberBox').checked;
+      try {
+        var k = await core.deriveKey(password, payload.salt, payload.iter);
+        var text = await core.decryptText(k, payload.iv, payload.ct);
+        var data = JSON.parse(text);
+        var raw = null;
+        try { raw = await core.exportKeyBytes(k); } catch (e) { raw = null; }
+        if (remember && raw) {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ salt: payload.salt, key: core.bytesToB64(raw) }));
+          } catch (e) { /* remembering is best-effort only */ }
+        } else {
+          try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+        }
+        onUnlocked(k, payload, data, raw);
+      } catch (e) {
+        document.getElementById('loginError').textContent = 'Neteisingas slaptažodis.';
+      }
+    };
+  }
+
+  async function boot() {
+    var payload;
+    try { payload = await fetchPayload(); }
+    catch (e) {
+      setNotice('Nepavyko pasiekti duomenų — bandoma iš naujo.');
+      setTimeout(boot, 2000);
+      return;
+    }
+    await bootWithPayload(payload);
+  }
+
+  function lock() {
+    // Every one of these must happen synchronously, before and independent of any network
+    // request: bump the generation counter first so an in-flight poll from before locking can
+    // never render into the now-locked page.
+    lockGen++;
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (seenTimer) { clearInterval(seenTimer); seenTimer = null; }
+    key = null; currentSalt = null; lastCt = null; lastData = null; topic = null; refreshAskedAt = 0;
+    seenChannel = null; lastCheckedAt = 0; lastPublishHandled = 0;
+    keyRawBytes = null; cmdChannel = null; askedRemind.clear();
+    resetRefreshBtn();
+    clearApp();
+    document.getElementById('passwordInput').value = '';
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+    showLogin('');
+    // Fetching a fresh payload for the next login is best-effort and never blocks the lock itself.
+    boot();
+  }
+
+  document.getElementById('lockBtn').addEventListener('click', lock);
+  document.getElementById('refreshBtn').addEventListener('click', askRefresh);
+
+  boot();
+})();
+</script>
+</body>
+</html>
